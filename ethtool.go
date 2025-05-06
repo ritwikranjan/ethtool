@@ -968,8 +968,28 @@ func (e *Ethtool) LinkState(intf string) (uint32, error) {
 	return x.data, nil
 }
 
+// As gstrings and stats are high memory structures, we
+// create them once and reuse them for each call.
+var (
+	gstrings = new(ethtoolGStrings)
+	stats    = new(ethtoolStats)
+)
+
 // Stats retrieves stats of the given interface name.
 func (e *Ethtool) Stats(intf string) (map[string]uint64, error) {
+	// Clear the data slice to avoid memory leaks and
+	// to ensure that the data is not reused from previous calls.
+	// This is important because the data slice is reused for each call.
+	// We use a defer function to clear the data slice after the function returns.
+	defer func() {
+		for i := 0; i < len(gstrings.data); i++ {
+			gstrings.data[i] = 0
+		}
+		for i := 0; i < len(stats.data); i++ {
+			stats.data[i] = 0
+		}
+	}()
+
 	drvinfo := ethtoolDrvInfo{
 		cmd: ETHTOOL_GDRVINFO,
 	}
@@ -982,22 +1002,16 @@ func (e *Ethtool) Stats(intf string) (map[string]uint64, error) {
 		return nil, fmt.Errorf("ethtool currently doesn't support more than %d entries, received %d", MAX_GSTRINGS, drvinfo.n_stats)
 	}
 
-	gstrings := ethtoolGStrings{
-		cmd:        ETHTOOL_GSTRINGS,
-		string_set: ETH_SS_STATS,
-		len:        drvinfo.n_stats,
-		data:       [MAX_GSTRINGS * ETH_GSTRING_LEN]byte{},
-	}
+	gstrings.cmd = ETHTOOL_GSTRINGS
+	gstrings.string_set = ETH_SS_STATS
+	gstrings.len = drvinfo.n_stats
 
 	if err := e.ioctl(intf, uintptr(unsafe.Pointer(&gstrings))); err != nil {
 		return nil, err
 	}
 
-	stats := ethtoolStats{
-		cmd:     ETHTOOL_GSTATS,
-		n_stats: drvinfo.n_stats,
-		data:    [MAX_GSTRINGS]uint64{},
-	}
+	stats.cmd = ETHTOOL_GSTATS
+	stats.n_stats = drvinfo.n_stats
 
 	if err := e.ioctl(intf, uintptr(unsafe.Pointer(&stats))); err != nil {
 		return nil, err
