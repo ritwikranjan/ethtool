@@ -1006,14 +1006,14 @@ func (e *Ethtool) Stats(intf string) (map[string]uint64, error) {
 	gstrings.string_set = ETH_SS_STATS
 	gstrings.len = drvinfo.n_stats
 
-	if err := e.ioctl(intf, uintptr(unsafe.Pointer(&gstrings))); err != nil {
+	if err := e.ioctl(intf, uintptr(unsafe.Pointer(gstrings))); err != nil {
 		return nil, err
 	}
 
 	stats.cmd = ETHTOOL_GSTATS
 	stats.n_stats = drvinfo.n_stats
 
-	if err := e.ioctl(intf, uintptr(unsafe.Pointer(&stats))); err != nil {
+	if err := e.ioctl(intf, uintptr(unsafe.Pointer(stats))); err != nil {
 		return nil, err
 	}
 
